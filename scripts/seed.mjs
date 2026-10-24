@@ -23,8 +23,8 @@ const db = new DatabaseSync(path.join(dir, 'eventsphere.db'));
 db.exec(readFileSync(path.join(root, 'lib', 'schema.sql'), 'utf8'));
 
 const addUser = db.prepare(
-  `INSERT INTO users (name, email, password_hash, birth_year, city, avatar, parent_id)
-   VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  `INSERT INTO users (name, email, password_hash, birth_year, city, avatar, parent_id, is_admin)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 );
 
 // Такой же формат, как в lib/auth.ts: scrypt из стандартной библиотеки.
@@ -50,10 +50,11 @@ const addReg = db.prepare(
   `INSERT INTO registrations (event_id, attendee_id, booked_by_id, status) VALUES (?, ?, ?, ?)`,
 );
 
-const u = (name, email, year, avatar, parent = null) =>
+const u = (name, email, year, avatar, parent = null, isAdmin = 0) =>
   Number(
-    addUser.run(name, email, email ? hash(DEMO_PASSWORD) : null, year, 'Бишкек', avatar, parent)
-      .lastInsertRowid,
+    addUser.run(
+      name, email, email ? hash(DEMO_PASSWORD) : null, year, 'Бишкек', avatar, parent, isAdmin,
+    ).lastInsertRowid,
   );
 
 // ---- Участники --------------------------------------------------------------
@@ -62,6 +63,9 @@ const timur = u('Тимур Асанов', 'timur@example.kg', 1988, '👨');
 const alina = u('Алина Асанова', null, 2016, '👧', timur); // 10 лет — детский профиль
 const bekzat = u('Бекзат Асанов', null, 2014, '👦', timur); // 12 лет — детский профиль
 const sanzhar = u('Санжар Муратов', 'sanzhar@example.kg', 2008, '🧑');
+
+// Служебный аккаунт: только у него есть экран модерации документов.
+u('Модератор EventSphere', 'admin@example.kg', 1995, '🛡️', null, 1);
 
 // ---- Организаторы -----------------------------------------------------------
 const org = (name, about, display, kyc, docLast4, fullName, rating, reviews, year = 1995) => {

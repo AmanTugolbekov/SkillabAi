@@ -63,6 +63,10 @@ export async function submitKycAction(formData: FormData) {
 }
 
 export async function reviewKycAction(formData: FormData) {
+  // Решение по документам принимает только модератор.
+  const user = await requireUser('/admin');
+  if (!user.is_admin) throw new Error('Нет прав на проверку документов');
+
   await reviewKyc(
     Number(formData.get('organizer_id')),
     formData.get('decision') === 'approve',

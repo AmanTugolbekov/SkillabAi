@@ -142,13 +142,15 @@ export default async function ProfilePage({
       </section>
 
       <section className="mt-6 space-y-3">
-        <Link href="/admin" className="card flex items-center justify-between gap-3 p-4">
-          <div>
-            <p className="t-small font-bold">Модерация организаторов</p>
-            <p className="mt-0.5 text-[12.5px] text-muted">Служебный экран проверки документов</p>
-          </div>
-          <span className="text-muted">→</span>
-        </Link>
+        {user.is_admin === 1 && (
+          <Link href="/admin" className="card flex items-center justify-between gap-3 p-4">
+            <div>
+              <p className="t-small font-bold">Модерация организаторов</p>
+              <p className="mt-0.5 text-[12.5px] text-muted">Служебный экран проверки документов</p>
+            </div>
+            <span className="text-muted">→</span>
+          </Link>
+        )}
 
         <div className="card p-4">
           <p className="t-small font-bold">Состояние сервисов</p>

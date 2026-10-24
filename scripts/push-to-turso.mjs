@@ -36,10 +36,25 @@ for (const statement of schema) {
 }
 console.log(`Схема применена: ${schema.length} выражений.`);
 
+// CREATE TABLE IF NOT EXISTS не добавляет колонки в существующую таблицу,
+// поэтому изменения схемы догоняем отдельно. Повторный запуск безвреден:
+// про уже существующую колонку SQLite просто ругается, и мы это пропускаем.
+const MIGRATIONS = ['ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0'];
+
+for (const statement of MIGRATIONS) {
+  try {
+    await remote.execute(statement);
+    console.log(`Колонка добавлена: ${statement}`);
+  } catch (error) {
+    if (!/duplicate column/i.test(String(error))) throw error;
+  }
+}
+
 // Порядок важен: сначала то, на что ссылаются внешние ключи.
 const TABLES = ['registrations', 'events', 'organizers', 'users'];
 
-for (const table of [...TABLES]) {
+// Старые строки убираем, чтобы облачная база совпала с локальной.
+for (const table of TABLES) {
   await remote.execute(`DELETE FROM ${table}`);
 }
 

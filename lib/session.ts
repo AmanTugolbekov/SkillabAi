@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getUser, organizerOf } from './queries';
 import { sessionUserId } from './auth';
 import type { User } from './types';
@@ -22,6 +22,13 @@ export async function requireUser(returnTo?: string): Promise<User> {
   if (!user) {
     redirect(returnTo ? `/login?next=${encodeURIComponent(returnTo)}` : '/login');
   }
+  return user;
+}
+
+/** Экран модерации доступен только служебному аккаунту. */
+export async function requireAdmin(): Promise<User> {
+  const user = await requireUser('/admin');
+  if (!user.is_admin) notFound();
   return user;
 }
 

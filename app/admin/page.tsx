@@ -3,12 +3,14 @@ import { reviewKycAction } from '@/app/actions';
 import { KycBadge } from '@/components/Badges';
 import { allOrganizers } from '@/lib/queries';
 import { formatDateTime } from '@/lib/format';
+import { requireAdmin } from '@/lib/session';
 
 /**
  * Экран модератора: тот, кто в реальной жизни смотрит документы.
  * В прототипе он нужен, чтобы показать весь путь KYC от заявки до допуска.
  */
 export default async function AdminPage() {
+  await requireAdmin();
   const organizers = await allOrganizers();
   const pending = organizers.filter((o) => o.kyc_status === 'pending');
 

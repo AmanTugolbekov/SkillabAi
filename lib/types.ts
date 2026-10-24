@@ -8,6 +8,7 @@ export type User = {
   email: string | null;
   password_hash: string | null;
   google_sub: string | null;
+  is_admin: number;
   birth_year: number;
   city: string;
   avatar: string;

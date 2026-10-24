@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT,
   -- идентификатор аккаунта Google (поле sub из id_token)
   google_sub    TEXT,
+  -- доступ к экрану модерации: у обычных участников его нет
+  is_admin      INTEGER NOT NULL DEFAULT 0,
   birth_year    INTEGER NOT NULL,
   city          TEXT    NOT NULL DEFAULT 'Бишкек',
   avatar        TEXT    NOT NULL DEFAULT '🙂',
