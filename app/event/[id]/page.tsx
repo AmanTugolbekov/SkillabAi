@@ -50,22 +50,26 @@ export default async function EventPage({
   const { id } = await params;
   const { r, new: isNew } = await searchParams;
 
-  const event = getEvent(Number(id));
+  const event = await getEvent(Number(id));
   if (!event) notFound();
 
   const user = await currentUser();
-  const organizer = organizerById(event.organizer_id);
-  const kids = childrenOf(user.id);
+  const organizer = await organizerById(event.organizer_id);
+  const kids = user ? await childrenOf(user.id) : [];
   const deadline = deadlineLabel(event.deadline_at);
   const full = event.capacity > 0 && event.taken >= event.capacity;
-  const mine = registrationFor(event.id, user.id);
-  const childProfile = isChildAccount(user);
+  const mine = user ? await registrationFor(event.id, user.id) : undefined;
+  const childProfile = user ? isChildAccount(user) : false;
 
   // Кандидаты на запись: сам пользователь и его дети, подходящие по возрасту.
-  const candidates = [
-    { id: user.id, name: `${user.name} (я)`, age: ageOf(user) },
-    ...kids.map((k) => ({ id: k.id, name: k.name, age: ageOf(k) })),
-  ].filter((c) => c.age >= event.min_age && c.age <= event.max_age);
+  const candidates = (
+    user
+      ? [
+          { id: user.id, name: `${user.name} (я)`, age: ageOf(user) },
+          ...kids.map((k) => ({ id: k.id, name: k.name, age: ageOf(k) })),
+        ]
+      : []
+  ).filter((c) => c.age >= event.min_age && c.age <= event.max_age);
 
   const paidButUnverified = event.price > 0 && event.kyc_status !== 'verified';
 
@@ -191,7 +195,11 @@ export default async function EventPage({
 
       {/* Блок записи */}
       <div className="sticky bottom-0 mt-5 border-t border-line bg-page/95 px-4 py-3.5 backdrop-blur-xl">
-        {mine ? (
+        {!user ? (
+          <Link href={`/login?next=${encodeURIComponent(`/event/${event.id}`)}`} className="btn-primary w-full">
+            Войдите, чтобы записаться
+          </Link>
+        ) : mine ? (
           <p
             className="rounded-[12px] px-4 py-3 text-center text-[14px] font-semibold"
             style={{ background: 'var(--ok-soft)', color: 'var(--ok)' }}

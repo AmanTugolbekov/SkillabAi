@@ -6,6 +6,8 @@ export type User = {
   id: number;
   name: string;
   email: string | null;
+  password_hash: string | null;
+  google_sub: string | null;
   birth_year: number;
   city: string;
   avatar: string;

@@ -38,8 +38,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <AppHeader
             role={role}
             theme={theme}
-            userName={user.name}
-            isChild={isChildAccount(user)}
+            userName={user?.name ?? null}
+            isChild={user ? isChildAccount(user) : false}
           />
           <main className="flex-1 pb-4">{children}</main>
           <BottomNav role={role} />

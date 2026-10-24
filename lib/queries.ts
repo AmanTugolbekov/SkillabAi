@@ -54,7 +54,7 @@ function toCard(row: RawCard): EventCard {
   };
 }
 
-export function listEvents(f: Filters = {}): EventCard[] {
+export async function listEvents(f: Filters = {}): Promise<EventCard[]> {
   const where: string[] = [];
   const params: unknown[] = [];
 
@@ -105,32 +105,21 @@ export function listEvents(f: Filters = {}): EventCard[] {
     LIMIT ?`;
   params.push(f.limit ?? 60);
 
-  return all<RawCard>(sql, params).map(toCard);
+  return (await all<RawCard>(sql, params)).map(toCard);
 }
 
-export function getEvent(id: number): EventCard | null {
-  const row = one<RawCard>(`${EVENT_SELECT} WHERE e.id = ?`, [id]);
+export async function getEvent(id: number): Promise<EventCard | null> {
+  const row = await one<RawCard>(`${EVENT_SELECT} WHERE e.id = ?`, [id]);
   return row ? toCard(row) : null;
 }
 
 // ---- Пользователи -----------------------------------------------------------
 
-export function getUser(id: number): User | undefined {
+export async function getUser(id: number): Promise<User | undefined> {
   return one<User>('SELECT * FROM users WHERE id = ?', [id]);
 }
 
-/** Аккаунты для переключателя в демо: взрослые и их детские профили. */
-export function demoUsers(): (User & { children: number })[] {
-  return all<User & { children: number }>(
-    `SELECT u.*, (SELECT COUNT(*) FROM users c WHERE c.parent_id = u.id) AS children
-     FROM users u
-     WHERE u.email IS NOT NULL OR u.parent_id IS NOT NULL
-     ORDER BY u.parent_id IS NOT NULL, u.id
-     LIMIT 8`,
-  );
-}
-
-export function childrenOf(parentId: number): User[] {
+export async function childrenOf(parentId: number): Promise<User[]> {
   return all<User>('SELECT * FROM users WHERE parent_id = ? ORDER BY birth_year DESC', [parentId]);
 }
 
@@ -145,28 +134,31 @@ export function isChildAccount(user: User) {
 
 // ---- Организаторы -----------------------------------------------------------
 
-export function organizerOf(userId: number): Organizer | undefined {
+export async function organizerOf(userId: number): Promise<Organizer | undefined> {
   return one<Organizer>('SELECT * FROM organizers WHERE user_id = ?', [userId]);
 }
 
-export function organizerById(id: number): Organizer | undefined {
+export async function organizerById(id: number): Promise<Organizer | undefined> {
   return one<Organizer>('SELECT * FROM organizers WHERE id = ?', [id]);
 }
 
 /** Создаёт профиль организатора при первом входе в режим организатора. */
-export function ensureOrganizer(userId: number): Organizer {
-  const existing = organizerOf(userId);
+export async function ensureOrganizer(userId: number): Promise<Organizer> {
+  const existing = await organizerOf(userId);
   if (existing) return existing;
-  const user = getUser(userId);
-  run('INSERT INTO organizers (user_id, display_name) VALUES (?, ?)', [userId, user?.name ?? 'Организатор']);
-  return organizerOf(userId)!;
+  const user = await getUser(userId);
+  await run('INSERT INTO organizers (user_id, display_name) VALUES (?, ?)', [
+    userId,
+    user?.name ?? 'Организатор',
+  ]);
+  return (await organizerOf(userId))!;
 }
 
-export function submitKyc(
+export async function submitKyc(
   organizerId: number,
   data: { full_name: string; doc_type: string; doc_number: string; about: string },
 ) {
-  run(
+  await run(
     `UPDATE organizers
      SET kyc_status = 'pending', kyc_full_name = ?, kyc_doc_type = ?, kyc_doc_last4 = ?,
          about = ?, kyc_submitted_at = datetime('now','localtime'), kyc_reviewed_at = NULL, kyc_note = NULL
@@ -175,8 +167,8 @@ export function submitKyc(
   );
 }
 
-export function reviewKyc(organizerId: number, approve: boolean, note = '') {
-  run(
+export async function reviewKyc(organizerId: number, approve: boolean, note = '') {
+  await run(
     `UPDATE organizers
      SET kyc_status = ?, kyc_reviewed_at = datetime('now','localtime'), kyc_note = ?
      WHERE id = ?`,
@@ -184,7 +176,7 @@ export function reviewKyc(organizerId: number, approve: boolean, note = '') {
   );
 }
 
-export function pendingKyc(): (Organizer & { user_name: string })[] {
+export async function pendingKyc(): Promise<(Organizer & { user_name: string })[]> {
   return all<Organizer & { user_name: string }>(
     `SELECT o.*, u.name AS user_name FROM organizers o
      JOIN users u ON u.id = o.user_id
@@ -193,7 +185,7 @@ export function pendingKyc(): (Organizer & { user_name: string })[] {
   );
 }
 
-export function allOrganizers(): (Organizer & { user_name: string; events: number })[] {
+export async function allOrganizers(): Promise<(Organizer & { user_name: string; events: number })[]> {
   return all<Organizer & { user_name: string; events: number }>(
     `SELECT o.*, u.name AS user_name,
             (SELECT COUNT(*) FROM events e WHERE e.organizer_id = o.id) AS events
@@ -204,8 +196,8 @@ export function allOrganizers(): (Organizer & { user_name: string; events: numbe
 
 // ---- Создание ивента --------------------------------------------------------
 
-export function createEvent(organizerId: number, draft: EventDraft): number {
-  const result = run(
+export async function createEvent(organizerId: number, draft: EventDraft): Promise<number> {
+  const result = await run(
     `INSERT INTO events (organizer_id, title, summary, category, format, district, venue, price,
        starts_at, ends_at, deadline_at, min_age, max_age, capacity, cover,
        timing, requirements, perks, tags, details)
@@ -248,7 +240,7 @@ const REG_SELECT = `
   JOIN users a ON a.id = r.attendee_id`;
 
 /** Мои записи плюс записи моих детей — родитель видит всё в одном месте. */
-export function registrationsFor(userId: number): RegistrationView[] {
+export async function registrationsFor(userId: number): Promise<RegistrationView[]> {
   return all<RegistrationView>(
     `${REG_SELECT}
      WHERE r.attendee_id = ? OR r.booked_by_id = ? OR a.parent_id = ?
@@ -257,7 +249,7 @@ export function registrationsFor(userId: number): RegistrationView[] {
   );
 }
 
-export function registrationFor(eventId: number, attendeeId: number) {
+export async function registrationFor(eventId: number, attendeeId: number) {
   return one<{ id: number; status: string }>(
     'SELECT id, status FROM registrations WHERE event_id = ? AND attendee_id = ?',
     [eventId, attendeeId],
@@ -272,12 +264,16 @@ export type RegisterOutcome =
  * Записывает участника на ивент.
  * Если записывается сам ребёнок младше 13 — заявка ждёт подтверждения родителя.
  */
-export function register(eventId: number, attendeeId: number, bookedById: number): RegisterOutcome {
-  const event = getEvent(eventId);
-  const attendee = getUser(attendeeId);
+export async function register(
+  eventId: number,
+  attendeeId: number,
+  bookedById: number,
+): Promise<RegisterOutcome> {
+  const event = await getEvent(eventId);
+  const attendee = await getUser(attendeeId);
   if (!event || !attendee) return { ok: false, reason: 'Событие или участник не найдены' };
 
-  if (registrationFor(eventId, attendeeId)) {
+  if (await registrationFor(eventId, attendeeId)) {
     return { ok: false, reason: 'Этот участник уже записан' };
   }
   if (event.capacity > 0 && event.taken >= event.capacity) {
@@ -297,26 +293,27 @@ export function register(eventId: number, attendeeId: number, bookedById: number
   // Ребёнок сам себя записать не может: заявка уходит родителю.
   const needsParent = isChildAccount(attendee) && bookedById === attendeeId;
   const status = needsParent ? 'awaiting_parent' : 'confirmed';
-  run('INSERT INTO registrations (event_id, attendee_id, booked_by_id, status) VALUES (?, ?, ?, ?)', [
-    eventId, attendeeId, bookedById, status,
-  ]);
+  await run(
+    'INSERT INTO registrations (event_id, attendee_id, booked_by_id, status) VALUES (?, ?, ?, ?)',
+    [eventId, attendeeId, bookedById, status],
+  );
   return { ok: true, status };
 }
 
-export function confirmRegistration(id: number, parentId: number) {
-  run(
+export async function confirmRegistration(id: number, parentId: number) {
+  await run(
     `UPDATE registrations SET status = 'confirmed', booked_by_id = ?
      WHERE id = ? AND status = 'awaiting_parent'`,
     [parentId, id],
   );
 }
 
-export function cancelRegistration(id: number) {
-  run(`UPDATE registrations SET status = 'cancelled' WHERE id = ?`, [id]);
+export async function cancelRegistration(id: number) {
+  await run(`UPDATE registrations SET status = 'cancelled' WHERE id = ?`, [id]);
 }
 
 /** Заявки детей, ожидающие решения родителя. */
-export function awaitingParent(parentId: number): RegistrationView[] {
+export async function awaitingParent(parentId: number): Promise<RegistrationView[]> {
   return all<RegistrationView>(
     `${REG_SELECT}
      WHERE a.parent_id = ? AND r.status = 'awaiting_parent'
@@ -326,7 +323,7 @@ export function awaitingParent(parentId: number): RegistrationView[] {
 }
 
 /** Участники события — для списка в режиме организатора. */
-export function attendeesOf(eventId: number) {
+export async function attendeesOf(eventId: number) {
   return all<{ id: number; name: string; avatar: string; status: string; birth_year: number }>(
     `SELECT u.id, u.name, u.avatar, r.status, u.birth_year
      FROM registrations r JOIN users u ON u.id = r.attendee_id
@@ -336,8 +333,8 @@ export function attendeesOf(eventId: number) {
   );
 }
 
-export function statsFor(organizerId: number) {
-  return one<{ events: number; attendees: number; revenue: number }>(
+export async function statsFor(organizerId: number) {
+  return (await one<{ events: number; attendees: number; revenue: number }>(
     `SELECT
        (SELECT COUNT(*) FROM events WHERE organizer_id = ?) AS events,
        (SELECT COUNT(*) FROM registrations r JOIN events e ON e.id = r.event_id
@@ -345,5 +342,5 @@ export function statsFor(organizerId: number) {
        (SELECT COALESCE(SUM(e.price), 0) FROM registrations r JOIN events e ON e.id = r.event_id
          WHERE e.organizer_id = ? AND r.status = 'confirmed') AS revenue`,
     [organizerId, organizerId, organizerId],
-  )!;
+  ))!;
 }

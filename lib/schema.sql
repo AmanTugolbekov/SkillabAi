@@ -4,6 +4,11 @@ CREATE TABLE IF NOT EXISTS users (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   name          TEXT    NOT NULL,
   email         TEXT,
+  -- scrypt-хеш пароля; NULL у тех, кто входит только через Google,
+  -- и у детских профилей, которые вообще не логинятся
+  password_hash TEXT,
+  -- идентификатор аккаунта Google (поле sub из id_token)
+  google_sub    TEXT,
   birth_year    INTEGER NOT NULL,
   city          TEXT    NOT NULL DEFAULT 'Бишкек',
   avatar        TEXT    NOT NULL DEFAULT '🙂',
@@ -72,6 +77,10 @@ CREATE TABLE IF NOT EXISTS registrations (
   UNIQUE (event_id, attendee_id)
 );
 
+-- Почта уникальна среди тех, у кого она есть: в SQLite несколько NULL
+-- уникальному индексу не мешают, а детские профили как раз без почты.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email  ON users(email) WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google ON users(google_sub) WHERE google_sub IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_events_starts   ON events(starts_at);
 CREATE INDEX IF NOT EXISTS idx_events_category ON events(category);
 CREATE INDEX IF NOT EXISTS idx_regs_attendee   ON registrations(attendee_id);

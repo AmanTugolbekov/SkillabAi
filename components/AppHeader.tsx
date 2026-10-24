@@ -6,7 +6,7 @@ import Avatar from './Avatar';
 type Props = {
   role: 'guest' | 'organizer';
   theme: 'light' | 'dark' | null;
-  userName: string;
+  userName: string | null;
   isChild: boolean;
 };
 
@@ -32,19 +32,27 @@ export default function AppHeader({ role, theme, userName, isChild }: Props) {
 
         <div className="flex items-center gap-2">
           <ThemeToggle saved={theme} />
-          <Link href="/profile" aria-label="Профиль">
-            <Avatar name={userName} size={34} />
-          </Link>
+          {userName ? (
+            <Link href="/profile" aria-label="Профиль">
+              <Avatar name={userName} size={34} />
+            </Link>
+          ) : (
+            <Link href="/login" className="btn-primary btn-sm">
+              Войти
+            </Link>
+          )}
         </div>
       </div>
 
       <div className="mt-2.5 flex items-center gap-2">
-        <form action={switchRoleAction}>
-          <input type="hidden" name="role" value={organizerMode ? 'guest' : 'organizer'} />
-          <button type="submit" className="chip">
-            {organizerMode ? 'Вернуться к афише' : 'Я организатор'}
-          </button>
-        </form>
+        {userName && (
+          <form action={switchRoleAction}>
+            <input type="hidden" name="role" value={organizerMode ? 'guest' : 'organizer'} />
+            <button type="submit" className="chip">
+              {organizerMode ? 'Вернуться к афише' : 'Я организатор'}
+            </button>
+          </form>
+        )}
         {isChild && (
           <span className="badge" style={{ background: 'var(--ok-soft)', color: 'var(--ok)' }}>
             детский профиль

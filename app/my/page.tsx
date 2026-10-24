@@ -4,14 +4,14 @@ import { Pill } from '@/components/Badges';
 import Avatar from '@/components/Avatar';
 import { photoFor } from '@/lib/photo';
 import { ageOf, awaitingParent, childrenOf, isChildAccount, registrationsFor } from '@/lib/queries';
-import { currentUser } from '@/lib/session';
+import { requireUser } from '@/lib/session';
 import { ageText, formatDateTime, formatPrice } from '@/lib/format';
 
 export default async function MyPage() {
-  const user = await currentUser();
-  const registrations = registrationsFor(user.id);
-  const kids = childrenOf(user.id);
-  const waiting = awaitingParent(user.id);
+  const user = await requireUser('/my');
+  const registrations = await registrationsFor(user.id);
+  const kids = await childrenOf(user.id);
+  const waiting = await awaitingParent(user.id);
 
   const upcoming = registrations.filter((r) => r.status !== 'cancelled');
   const mine = upcoming.filter((r) => r.attendee_id === user.id);

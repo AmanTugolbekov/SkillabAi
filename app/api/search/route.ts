@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
   const { data: intent, engine } = await interpretSearch(query.trim());
 
-  let events = listEvents({
+  let events = await listEvents({
     keywords: intent.keywords,
     categories: intent.categories,
     districts: intent.districts,
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   // ассистент всегда отвечал по делу, а не пустым списком.
   let relaxed: string | null = null;
   if (events.length === 0 && (intent.date_from || intent.date_to)) {
-    events = listEvents({
+    events = await listEvents({
       keywords: intent.keywords,
       categories: intent.categories,
       districts: intent.districts,
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     relaxed = 'На эти даты ничего не нашлось — показываю ближайшие похожие события.';
   }
   if (events.length === 0 && intent.keywords.length > 0) {
-    events = listEvents({
+    events = await listEvents({
       categories: intent.categories,
       districts: intent.districts,
       maxPrice: intent.max_price,
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     relaxed = 'Точного совпадения по словам нет — вот что близко по смыслу.';
   }
   if (events.length === 0) {
-    events = listEvents({ age: intent.age, limit: 5 });
+    events = await listEvents({ age: intent.age, limit: 5 });
     relaxed = 'Под такие условия пока ничего нет. Вот что вообще идёт в городе.';
   }
 

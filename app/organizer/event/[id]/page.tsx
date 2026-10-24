@@ -9,10 +9,10 @@ import { ageText, formatDateTime, formatMoney, formatPrice } from '@/lib/format'
 /** Список участников события — то, что организатор открывает на входе. */
 export default async function AttendeesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const event = getEvent(Number(id));
+  const event = await getEvent(Number(id));
   if (!event) notFound();
 
-  const attendees = attendeesOf(event.id);
+  const attendees = await attendeesOf(event.id);
   const confirmed = attendees.filter((a) => a.status === 'confirmed');
   const waiting = attendees.filter((a) => a.status === 'awaiting_parent');
 

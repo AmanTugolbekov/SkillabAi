@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { submitKycAction } from '@/app/actions';
 import { KycBadge } from '@/components/Badges';
 import { ensureOrganizer } from '@/lib/queries';
-import { currentUser } from '@/lib/session';
+import { requireUser } from '@/lib/session';
 import { formatDateTime } from '@/lib/format';
 
 const inputClass = 'field';
@@ -13,8 +13,8 @@ export default async function KycPage({
   searchParams: Promise<{ sent?: string; needed?: string }>;
 }) {
   const { sent, needed } = await searchParams;
-  const user = await currentUser();
-  const organizer = ensureOrganizer(user.id);
+  const user = await requireUser('/organizer/kyc');
+  const organizer = await ensureOrganizer(user.id);
 
   return (
     <div className="px-5 pt-5">

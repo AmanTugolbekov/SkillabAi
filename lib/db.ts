@@ -1,32 +1,48 @@
-import { DatabaseSync } from 'node:sqlite';
-import { readFileSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
+import { createClient, type Client } from '@libsql/client';
 import path from 'node:path';
 
-const DB_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DB_DIR, 'eventsphere.db');
+/**
+ * Слой доступа к базе.
+ *
+ * На Vercel файловая система у каждого экземпляра функции своя, поэтому
+ * SQLite-файл там не годится: запись уходит в один экземпляр, а читает
+ * другой. Вместо файла используем Turso — тот же SQLite, но общий для всех
+ * экземпляров. Локально, когда переменные Turso не заданы, клиент работает
+ * с обычным файлом в data/, и ничего настраивать не нужно.
+ */
+function localFileUrl() {
+  const file = path.join(process.cwd(), 'data', 'eventsphere.db');
+  return `file:${file.split(path.sep).join('/')}`;
+}
 
-// Next.js пересобирает модули в dev, поэтому соединение держим на globalThis.
-const g = globalThis as unknown as { __db?: DatabaseSync };
+const g = globalThis as unknown as { __db?: Client };
 
-export function db(): DatabaseSync {
+export function db(): Client {
   if (!g.__db) {
-    mkdirSync(DB_DIR, { recursive: true });
-    const conn = new DatabaseSync(DB_PATH);
-    conn.exec(readFileSync(path.join(process.cwd(), 'lib', 'schema.sql'), 'utf8'));
-    g.__db = conn;
+    const url = process.env.TURSO_DATABASE_URL?.trim();
+    g.__db = url
+      ? createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN })
+      : createClient({ url: localFileUrl() });
   }
   return g.__db;
 }
 
-export function all<T>(sql: string, params: unknown[] = []): T[] {
-  return db().prepare(sql).all(...(params as never[])) as T[];
+/** true, когда данные лежат в общей облачной базе, а не в локальном файле. */
+export function isShared() {
+  return Boolean(process.env.TURSO_DATABASE_URL?.trim());
 }
 
-export function one<T>(sql: string, params: unknown[] = []): T | undefined {
-  return db().prepare(sql).get(...(params as never[])) as T | undefined;
+export async function all<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+  const result = await db().execute({ sql, args: params as never[] });
+  return result.rows as unknown as T[];
 }
 
-export function run(sql: string, params: unknown[] = []) {
-  return db().prepare(sql).run(...(params as never[]));
+export async function one<T>(sql: string, params: unknown[] = []): Promise<T | undefined> {
+  const rows = await all<T>(sql, params);
+  return rows[0];
+}
+
+export async function run(sql: string, params: unknown[] = []) {
+  const result = await db().execute({ sql, args: params as never[] });
+  return { lastInsertRowid: result.lastInsertRowid, changes: result.rowsAffected };
 }

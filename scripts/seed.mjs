@@ -1,5 +1,6 @@
 // Наполняет data/eventsphere.db демо-данными. Запуск: npm run seed
 import { DatabaseSync } from 'node:sqlite';
+import { randomBytes, scryptSync } from 'node:crypto';
 import { readFileSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
@@ -22,8 +23,18 @@ const db = new DatabaseSync(path.join(dir, 'eventsphere.db'));
 db.exec(readFileSync(path.join(root, 'lib', 'schema.sql'), 'utf8'));
 
 const addUser = db.prepare(
-  `INSERT INTO users (name, email, birth_year, city, avatar, parent_id) VALUES (?, ?, ?, ?, ?, ?)`,
+  `INSERT INTO users (name, email, password_hash, birth_year, city, avatar, parent_id)
+   VALUES (?, ?, ?, ?, ?, ?, ?)`,
 );
+
+// Такой же формат, как в lib/auth.ts: scrypt из стандартной библиотеки.
+function hash(password) {
+  const salt = randomBytes(16);
+  return `scrypt$${salt.toString('hex')}$${scryptSync(password, salt, 64).toString('hex')}`;
+}
+
+// Общий пароль демо-аккаунтов — его видно в README, скрывать нечего.
+const DEMO_PASSWORD = 'eventsphere';
 const addOrg = db.prepare(
   `INSERT INTO organizers (user_id, display_name, about, kyc_status, kyc_doc_type, kyc_doc_last4,
      kyc_full_name, kyc_submitted_at, kyc_reviewed_at, rating, reviews_count)
@@ -40,7 +51,10 @@ const addReg = db.prepare(
 );
 
 const u = (name, email, year, avatar, parent = null) =>
-  Number(addUser.run(name, email, year, 'Бишкек', avatar, parent).lastInsertRowid);
+  Number(
+    addUser.run(name, email, email ? hash(DEMO_PASSWORD) : null, year, 'Бишкек', avatar, parent)
+      .lastInsertRowid,
+  );
 
 // ---- Участники --------------------------------------------------------------
 const amina = u('Амина Турсунова', 'amina@example.kg', 2004, '👩‍💻');
@@ -323,5 +337,15 @@ for (const [idx, count] of filler) {
 
 const n = db.prepare('SELECT COUNT(*) c FROM events').get().c;
 const r = db.prepare('SELECT COUNT(*) c FROM registrations').get().c;
+
+// Копия для деплоя: на Vercel файловая система только для чтения, поэтому
+// функция при холодном старте разворачивает эту базу во временный каталог.
+// VACUUM INTO даёт один согласованный файл без журналов WAL.
+const seedCopy = path.join(dir, 'seed.db');
+rmSync(seedCopy, { force: true });
+db.exec(`VACUUM INTO '${seedCopy.split(path.sep).join('/')}'`);
+
 console.log(`Готово: ${n} ивентов, 6 организаторов, ${r} регистраций.`);
+console.log(`Копия для деплоя: ${seedCopy}`);
+console.log(`Пароль демо-аккаунтов: ${DEMO_PASSWORD}`);
 db.close();

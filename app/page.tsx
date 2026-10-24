@@ -27,7 +27,7 @@ const PRICE_OPTIONS = [
 export default async function FeedPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
 
-  const events = listEvents({
+  const events = await listEvents({
     q: sp.q,
     categories: sp.cat ? [sp.cat] : undefined,
     districts: sp.district ? [sp.district] : undefined,

@@ -2,14 +2,14 @@ import Link from 'next/link';
 import { Capacity, KycBadge } from '@/components/Badges';
 import { photoFor } from '@/lib/photo';
 import { ensureOrganizer, listEvents, statsFor } from '@/lib/queries';
-import { currentUser } from '@/lib/session';
+import { requireUser } from '@/lib/session';
 import { formatDateTime, formatMoney, formatPrice } from '@/lib/format';
 
 export default async function OrganizerPage() {
-  const user = await currentUser();
-  const organizer = ensureOrganizer(user.id);
-  const stats = statsFor(organizer.id);
-  const events = listEvents({ organizerId: organizer.id, limit: 50 });
+  const user = await requireUser('/organizer');
+  const organizer = await ensureOrganizer(user.id);
+  const stats = await statsFor(organizer.id);
+  const events = await listEvents({ organizerId: organizer.id, limit: 50 });
 
   const verified = organizer.kyc_status === 'verified';
 
