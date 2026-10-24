@@ -11,15 +11,28 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { EventDraftSchema, SearchIntentSchema } from './ai-shape';
 import type { EventDraft, SearchIntent } from './ai-shape';
 import { structureEventFallback, interpretSearchFallback } from './ai-fallback';
+import { geminiEnabled, interpretSearchGemini, structureEventGemini } from './ai-gemini';
 import { CATEGORIES, DISTRICTS } from './types';
 
-export type Engine = 'claude' | 'heuristic';
+export type Engine = 'claude' | 'gemini' | 'heuristic';
 export type AiResult<T> = { data: T; engine: Engine; note?: string };
 
 const MODEL = 'claude-opus-5-5';
 
+function claudeEnabled() {
+  return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+}
+
+/** Есть ли вообще языковая модель — любая. */
 export function aiEnabled() {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return claudeEnabled() || geminiEnabled();
+}
+
+/** Что показать в профиле. */
+export function engineLabel(): string {
+  if (claudeEnabled()) return 'Claude';
+  if (geminiEnabled()) return 'Gemini';
+  return 'встроенные правила';
 }
 
 let client: Anthropic | null = null;
@@ -61,7 +74,18 @@ const SEARCH_SYSTEM = `Ты поисковый ассистент приложе
 
 /** Разбирает текст организатора на поля ивента. */
 export async function structureEvent(raw: string): Promise<AiResult<EventDraft>> {
-  if (!aiEnabled()) {
+  if (geminiEnabled() && !claudeEnabled()) {
+    try {
+      return { data: await structureEventGemini(STRUCTURE_SYSTEM, raw, today()), engine: 'gemini' };
+    } catch (error) {
+      return {
+        data: structureEventFallback(raw),
+        engine: 'heuristic',
+        note: `Gemini недоступен (${(error as Error).message}), разобрано по правилам.`,
+      };
+    }
+  }
+  if (!claudeEnabled()) {
     return { data: structureEventFallback(raw), engine: 'heuristic' };
   }
   try {
@@ -86,7 +110,14 @@ export async function structureEvent(raw: string): Promise<AiResult<EventDraft>>
 
 /** Превращает запрос на естественном языке в фильтры каталога. */
 export async function interpretSearch(query: string): Promise<AiResult<SearchIntent>> {
-  if (!aiEnabled()) {
+  if (geminiEnabled() && !claudeEnabled()) {
+    try {
+      return { data: await interpretSearchGemini(SEARCH_SYSTEM, query, today()), engine: 'gemini' };
+    } catch {
+      return { data: interpretSearchFallback(query), engine: 'heuristic' };
+    }
+  }
+  if (!claudeEnabled()) {
     return { data: interpretSearchFallback(query), engine: 'heuristic' };
   }
   try {

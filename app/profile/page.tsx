@@ -5,7 +5,7 @@ import { KycBadge, Pill } from '@/components/Badges';
 import Avatar from '@/components/Avatar';
 import { AuthError } from '@/components/AuthForm';
 import { ageOf, childrenOf, organizerOf } from '@/lib/queries';
-import { aiEnabled } from '@/lib/ai';
+import { aiEnabled, engineLabel } from '@/lib/ai';
 import { isShared } from '@/lib/db';
 import { googleEnabled } from '@/lib/auth';
 import { currentRole, requireUser } from '@/lib/session';
@@ -161,9 +161,7 @@ export default async function ProfilePage({
             </li>
             <li className="flex items-center justify-between gap-3">
               <span className="text-muted">AI-движок</span>
-              <Pill tone={aiEnabled() ? 'ok' : 'warn'}>
-                {aiEnabled() ? 'Claude' : 'встроенные правила'}
-              </Pill>
+              <Pill tone={aiEnabled() ? 'ok' : 'warn'}>{engineLabel()}</Pill>
             </li>
             <li className="flex items-center justify-between gap-3">
               <span className="text-muted">Вход через Google</span>

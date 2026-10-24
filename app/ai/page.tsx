@@ -12,7 +12,7 @@ type Turn =
       text: string;
       events: EventCardType[];
       intent: SearchIntent;
-      engine: 'claude' | 'heuristic';
+      engine: 'claude' | 'gemini' | 'heuristic';
       relaxed: string | null;
     };
 
@@ -177,7 +177,7 @@ export default function AiSearchPage() {
 }
 
 /** Показывает, во что ассистент превратил запрос — это объясняет результат. */
-function Filters({ intent, engine }: { intent: SearchIntent; engine: 'claude' | 'heuristic' }) {
+function Filters({ intent, engine }: { intent: SearchIntent; engine: 'claude' | 'gemini' | 'heuristic' }) {
   const chips: string[] = [];
   if (intent.categories.length) chips.push(...intent.categories);
   if (intent.districts.length) chips.push(...intent.districts);
@@ -195,7 +195,9 @@ function Filters({ intent, engine }: { intent: SearchIntent; engine: 'claude' | 
   return (
     <div className="mt-3 border-t border-line pt-3">
       <p className="t-caps mb-2 text-muted">
-        {engine === 'claude' ? 'Claude разобрал как' : 'разобрано как'}
+        {engine === 'heuristic'
+          ? 'разобрано как'
+          : `${engine === 'claude' ? 'Claude' : 'Gemini'} разобрал как`}
       </p>
       <div className="flex flex-wrap gap-1.5">
         {chips.length > 0 ? (

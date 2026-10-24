@@ -18,7 +18,7 @@ const EMPTY: EventDraft = {
 export default function NewEventPage() {
   const [raw, setRaw] = useState('');
   const [draft, setDraft] = useState<EventDraft | null>(null);
-  const [engine, setEngine] = useState<'claude' | 'heuristic' | null>(null);
+  const [engine, setEngine] = useState<'claude' | 'gemini' | 'heuristic' | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,9 +96,9 @@ export default function NewEventPage() {
 
           <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--accent-soft)' }}>
             <p className="text-[12.5px] leading-snug" style={{ color: 'var(--accent)' }}>
-              {engine === 'claude'
-                ? 'Claude разобрал анонс на блоки. Проверьте поля — всё редактируется.'
-                : 'Текст разобран встроенными правилами (ключ Anthropic не задан). Поля редактируются.'}
+              {engine === 'heuristic'
+                ? 'Текст разобран встроенными правилами. Поля редактируются.'
+                : `${engine === 'claude' ? 'Claude' : 'Gemini'} разобрал анонс на блоки. Проверьте поля — всё редактируется.`}
             </p>
             {note && (
               <p className="mt-1.5 text-[12px]" style={{ color: 'var(--warn)' }}>
