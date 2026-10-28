@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { tidySpeech } from '@/lib/speech';
 
 /**
  * Голосовой ввод на Web Speech API — он встроен в браузер, работает без
@@ -9,12 +10,18 @@ import { useEffect, useRef, useState } from 'react';
  *
  * Поддержки нет в Firefox и в старых браузерах, поэтому кнопка просто не
  * появляется там, где API недоступен.
+ *
+ * Слушаем всегда в непрерывном режиме и сами перезапускаем сессию: иначе
+ * Chrome обрывает запись на первой же паузе и отдаёт половину фразы. Запись
+ * держится, пока её не остановят кнопкой или пока не пройдёт autoStopMs
+ * тишины после последних слов.
  */
 
 type Recognition = {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
+  maxAlternatives: number;
   start: () => void;
   stop: () => void;
   abort: () => void;
@@ -40,7 +47,6 @@ function recognitionClass(): (new () => Recognition) | null {
 const ERRORS: Record<string, string> = {
   'not-allowed': 'Браузер не дал доступ к микрофону',
   'service-not-allowed': 'Браузер не дал доступ к микрофону',
-  'no-speech': 'Не расслышал — попробуйте ещё раз',
   network: 'Нет связи с сервисом распознавания',
   'audio-capture': 'Микрофон не найден',
 };
@@ -48,15 +54,15 @@ const ERRORS: Record<string, string> = {
 export default function VoiceInput({
   onText,
   onFinal,
-  continuous = false,
+  autoStopMs,
   title = 'Сказать голосом',
 }: {
   /** Текст по ходу речи: промежуточный и финальный. */
   onText: (text: string, isFinal: boolean) => void;
-  /** Речь закончилась — финальный текст целиком. */
+  /** Запись закончилась — финальный текст целиком. */
   onFinal?: (text: string) => void;
-  /** true — слушать через паузы, пока не нажмут «стоп» (для длинных анонсов). */
-  continuous?: boolean;
+  /** Сколько тишины ждать, прежде чем остановиться самим. Без него — только кнопкой. */
+  autoStopMs?: number;
   title?: string;
 }) {
   const [supported, setSupported] = useState(false);
@@ -64,57 +70,85 @@ export default function VoiceInput({
   const [error, setError] = useState<string | null>(null);
   const recognition = useRef<Recognition | null>(null);
   const finalText = useRef('');
+  const wantListening = useRef(false);
+  const silence = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setSupported(recognitionClass() !== null);
-    return () => recognition.current?.abort();
+    return () => {
+      wantListening.current = false;
+      if (silence.current) clearTimeout(silence.current);
+      recognition.current?.abort();
+    };
   }, []);
 
-  function stop() {
-    recognition.current?.stop();
-    setListening(false);
+  function finish() {
+    const text = tidySpeech(finalText.current);
+    if (text) {
+      onText(text, true);
+      onFinal?.(text);
+    }
   }
 
-  function start() {
+  function stop() {
+    wantListening.current = false;
+    if (silence.current) clearTimeout(silence.current);
+    recognition.current?.stop();
+    setListening(false);
+    finish();
+  }
+
+  function listen() {
     const Recognition = recognitionClass();
     if (!Recognition) return;
 
-    setError(null);
-    finalText.current = '';
-
     const instance = new Recognition();
     instance.lang = 'ru-RU';
-    instance.continuous = continuous;
+    instance.continuous = true;
     instance.interimResults = true;
+    instance.maxAlternatives = 1;
 
     instance.onresult = (event) => {
       let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const chunk = event.results[i][0].transcript;
-        if (event.results[i].isFinal) finalText.current += chunk;
+        if (event.results[i].isFinal) finalText.current += `${chunk} `;
         else interim += chunk;
       }
-      const text = (finalText.current + interim).trim();
+      const text = tidySpeech(finalText.current + interim);
       if (text) onText(text, false);
+
+      if (autoStopMs) {
+        if (silence.current) clearTimeout(silence.current);
+        silence.current = setTimeout(stop, autoStopMs);
+      }
     };
 
     instance.onerror = (event) => {
+      // Тишина в непрерывном режиме — не ошибка: ждём, пока заговорят.
+      if (event.error === 'no-speech' || event.error === 'aborted') return;
+      wantListening.current = false;
       setError(ERRORS[event.error] ?? 'Распознавание не удалось');
       setListening(false);
     };
 
+    // Chrome закрывает сессию сам каждые несколько десятков секунд —
+    // поднимаем новую, пока запись не остановили.
     instance.onend = () => {
-      setListening(false);
-      const text = finalText.current.trim();
-      if (text) {
-        onText(text, true);
-        onFinal?.(text);
-      }
+      if (wantListening.current) listen();
+      else setListening(false);
     };
 
     recognition.current = instance;
     instance.start();
+  }
+
+  function start() {
+    setError(null);
+    finalText.current = '';
+    wantListening.current = true;
     setListening(true);
+    listen();
   }
 
   if (!supported) return null;

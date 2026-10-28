@@ -165,10 +165,11 @@ export default function AiSearchPage() {
           placeholder="Что ищете?"
           className="field flex-1"
         />
-        {/* Договорил — ищем сразу, руками ничего нажимать не нужно. */}
+        {/* Текст остаётся в поле: распознавание ошибается, и правка быстрее,
+            чем переспрашивать заново. Пауза в 2 секунды — конец фразы. */}
         <VoiceInput
+          autoStopMs={2000}
           onText={(text) => setInput(text)}
-          onFinal={(text) => ask(text)}
           title="Сказать запрос голосом"
         />
         <button

@@ -79,7 +79,6 @@ export default function NewEventPage() {
             и дописываем к тому, что уже набрано. */}
         <div className="mt-2.5 flex items-center gap-3">
           <VoiceInput
-            continuous
             onText={(text, isFinal) => {
               if (isFinal) setRaw((prev) => (prev ? `${prev.trim()} ${text}` : text));
             }}
