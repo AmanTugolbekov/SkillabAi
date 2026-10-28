@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createEventAction } from '@/app/actions';
+import VoiceInput from '@/components/VoiceInput';
 import type { EventDraft } from '@/lib/ai-shape';
 import { CATEGORIES, DISTRICTS } from '@/lib/types';
 
@@ -73,6 +74,23 @@ export default function NewEventPage() {
           placeholder="В субботу собираемся на пикник, сбор в 13:00 у входа, взнос 250 сом…"
           className="field resize-y leading-relaxed"
         />
+
+        {/* Анонс длинный и с паузами, поэтому слушаем, пока не остановят,
+            и дописываем к тому, что уже набрано. */}
+        <div className="mt-2.5 flex items-center gap-3">
+          <VoiceInput
+            continuous
+            onText={(text, isFinal) => {
+              if (isFinal) setRaw((prev) => (prev ? `${prev.trim()} ${text}` : text));
+            }}
+            title="Надиктовать анонс"
+          />
+          <p className="text-[12.5px] leading-snug text-muted">
+            Можно надиктовать: нажмите микрофон, расскажите про событие своими словами и
+            остановите запись.
+          </p>
+        </div>
+
         <button
           onClick={structure}
           disabled={loading || raw.trim().length < 20}

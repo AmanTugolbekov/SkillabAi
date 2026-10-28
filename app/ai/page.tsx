@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import EventCard from '@/components/EventCard';
+import VoiceInput from '@/components/VoiceInput';
 import type { EventCard as EventCardType } from '@/lib/types';
 import type { SearchIntent } from '@/lib/ai-shape';
 
@@ -161,8 +162,14 @@ export default function AiSearchPage() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Книжный клуб в выходные…"
+          placeholder="Что ищете?"
           className="field flex-1"
+        />
+        {/* Договорил — ищем сразу, руками ничего нажимать не нужно. */}
+        <VoiceInput
+          onText={(text) => setInput(text)}
+          onFinal={(text) => ask(text)}
+          title="Сказать запрос голосом"
         />
         <button
           type="submit"
