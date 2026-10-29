@@ -69,7 +69,10 @@ export default function VoiceInput({
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognition = useRef<Recognition | null>(null);
-  const finalText = useRef('');
+  /** Текст закрытых сессий: Chrome обрывает запись сам, мы поднимаем новую. */
+  const committed = useRef('');
+  /** Всё, что набралось в текущей сессии, целиком. */
+  const session = useRef('');
   const wantListening = useRef(false);
   const silence = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -78,29 +81,43 @@ export default function VoiceInput({
     return () => {
       wantListening.current = false;
       if (silence.current) clearTimeout(silence.current);
-      recognition.current?.abort();
+      drop();
     };
   }, []);
 
-  function finish() {
-    const text = tidySpeech(finalText.current);
+  /** Отвязывает прежнюю сессию, чтобы её onend не поднял вторую запись. */
+  function drop() {
+    const instance = recognition.current;
+    if (!instance) return;
+    instance.onresult = null;
+    instance.onerror = null;
+    instance.onend = null;
+    instance.abort();
+    recognition.current = null;
+  }
+
+  function fullText() {
+    return tidySpeech(`${committed.current} ${session.current}`);
+  }
+
+  function stop() {
+    wantListening.current = false;
+    if (silence.current) clearTimeout(silence.current);
+    const text = fullText();
+    drop();
+    setListening(false);
     if (text) {
       onText(text, true);
       onFinal?.(text);
     }
   }
 
-  function stop() {
-    wantListening.current = false;
-    if (silence.current) clearTimeout(silence.current);
-    recognition.current?.stop();
-    setListening(false);
-    finish();
-  }
-
   function listen() {
     const Recognition = recognitionClass();
     if (!Recognition) return;
+
+    drop();
+    session.current = '';
 
     const instance = new Recognition();
     instance.lang = 'ru-RU';
@@ -109,14 +126,16 @@ export default function VoiceInput({
     instance.maxAlternatives = 1;
 
     instance.onresult = (event) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const chunk = event.results[i][0].transcript;
-        if (event.results[i].isFinal) finalText.current += `${chunk} `;
-        else interim += chunk;
+      // Собираем фразу заново из всего списка результатов. Chrome присылает
+      // один и тот же финальный результат по нескольку раз, и если дописывать
+      // его к накопленному, слово повторяется: «пикник пикник пикник».
+      let text = '';
+      for (let i = 0; i < event.results.length; i++) {
+        text += `${event.results[i][0].transcript} `;
       }
-      const text = tidySpeech(finalText.current + interim);
-      if (text) onText(text, false);
+      session.current = text;
+      const whole = fullText();
+      if (whole) onText(whole, false);
 
       if (autoStopMs) {
         if (silence.current) clearTimeout(silence.current);
@@ -133,8 +152,10 @@ export default function VoiceInput({
     };
 
     // Chrome закрывает сессию сам каждые несколько десятков секунд —
-    // поднимаем новую, пока запись не остановили.
+    // забираем её текст и поднимаем новую, пока запись не остановили.
     instance.onend = () => {
+      committed.current = `${committed.current} ${session.current}`.trim();
+      session.current = '';
       if (wantListening.current) listen();
       else setListening(false);
     };
@@ -145,7 +166,8 @@ export default function VoiceInput({
 
   function start() {
     setError(null);
-    finalText.current = '';
+    committed.current = '';
+    session.current = '';
     wantListening.current = true;
     setListening(true);
     listen();
